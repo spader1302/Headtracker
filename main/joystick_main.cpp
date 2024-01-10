@@ -51,7 +51,10 @@ static bool connected = false;
 static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *param);
 
 #define HIDD_DEVICE_NAME            "Dingo Gamepad"
-
+/*
+#include "bno055.hpp"
+BNOSensor bno();
+*/
 static uint8_t hidd_service_uuid128[] = {
     /* LSB <--------------------------------------------------------------------------------> MSB */
     //first uuid, 16bit, [12],[13] is the value
@@ -160,6 +163,11 @@ static uint8_t readJoystickChannel(adc1_channel_t channel)
     adc1_config_channel_atten(channel, ADC_ATTEN_DB_11);  //ADC_ATTEN_DB_11 = 0-3,6V
     return (uint8_t)(adc1_get_raw(channel) >> 2);         //Read analog and shift to 0-255
 }
+typedef int bno_rotation_axis_t;
+static uint8_t readSensor(bno_rotation_axis_t axis)
+{
+    return 0;
+}
 
 static void read_joystick_task(void *pvParameter)
 {
@@ -171,7 +179,7 @@ static void read_joystick_task(void *pvParameter)
     uint16_t last_buttons = 0;
 
     joystick_buttons_event_t ev;
-    QueueHandle_t joystick_buttons_events = joystick_buttons_init();
+    QueueHandle_t joystick_buttons_events = *joystick_buttons_init();
 
     while(true) {
         ESP_LOGD(HID_JOYSTICK_TAG, "wait for joystick_buttons_events");
@@ -212,7 +220,7 @@ static esp_err_t read_joystick_init(void)
     return ESP_OK;
 }
 
-void app_main()
+extern "C" void app_main()
 {
     esp_err_t ret;
 
@@ -279,4 +287,3 @@ void app_main()
         ESP_LOGE(HID_JOYSTICK_TAG, "%s init read joystick failed\n", __func__);
     }
 }
-

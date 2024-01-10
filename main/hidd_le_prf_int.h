@@ -23,6 +23,10 @@
 #include "esp_gap_ble_api.h"
 #include "hid_dev.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define SUPPORT_REPORT_VENDOR                 false
 //HID BLE profile log tag
 #define HID_LE_PRF_TAG                        "HID_LE_PRF"
@@ -339,6 +343,8 @@ void hidd_get_attr_value(uint16_t handle, uint16_t *length, uint8_t **value);
 
 esp_err_t hidd_register_cb(void);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif  ///__HID_DEVICE_LE_PRF__
-
