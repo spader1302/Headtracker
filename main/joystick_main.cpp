@@ -51,10 +51,12 @@ static bool connected = false;
 static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *param);
 
 #define HIDD_DEVICE_NAME            "Dingo Gamepad"
-/*
+
+static constexpr uint8_t BNO055_I2C_ADDR        = 29;
+
 #include "bno055.hpp"
-BNOSensor bno();
-*/
+BNOSensor bno(BNO055_I2C_ADDR);
+
 static uint8_t hidd_service_uuid128[] = {
     /* LSB <--------------------------------------------------------------------------------> MSB */
     //first uuid, 16bit, [12],[13] is the value
@@ -163,11 +165,6 @@ static uint8_t readJoystickChannel(adc1_channel_t channel)
     adc1_config_channel_atten(channel, ADC_ATTEN_DB_11);  //ADC_ATTEN_DB_11 = 0-3,6V
     return (uint8_t)(adc1_get_raw(channel) >> 2);         //Read analog and shift to 0-255
 }
-typedef int bno_rotation_axis_t;
-static uint8_t readSensor(bno_rotation_axis_t axis)
-{
-    return 0;
-}
 
 static void read_joystick_task(void *pvParameter)
 {
@@ -189,10 +186,17 @@ static void read_joystick_task(void *pvParameter)
             buttons = ev.state;
         }
 
+        /*
         js1x = readJoystickChannel(ADC1_CHANNEL_1);
         js1y = readJoystickChannel(ADC1_CHANNEL_4);
         js2x = readJoystickChannel(ADC1_CHANNEL_2);
         js2y = readJoystickChannel(ADC1_CHANNEL_3);
+        */
+
+        js1x = bno.pitch2Joy();
+        js1y = bno.roll2Joy();
+        js2x = bno.heading2Joy();
+        js2y = 0;
 
         // very simple checksum :)
         current_sum = (js2x<<24) + (js2y<<16) + (js1x<<8) + js1y;

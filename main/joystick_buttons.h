@@ -1,6 +1,9 @@
 #ifndef __JOYSTICK_BUTTONS_H__
 #define __JOYSTICK_BUTTONS_H__
 
+#include "freertos/queue.h"
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -14,9 +14,17 @@ class BNOSensor {
 
 public:
 
+    BNOSensor(uint8_t i2c_addr) :
+        _i2c_addr{i2c_addr}
+        {}
+
     float eulByte2FloatDegrees(int16_t euler_byte);
     float eulByte2FloatRadians(int16_t euler_byte);
     float quaByte2Float(int16_t qua_byte);
+
+    uint8_t pitch2Joy();
+    uint8_t roll2Joy();
+    uint8_t heading2Joy();
 
     int16_t get_eul_heading();
     int16_t get_eul_roll();
@@ -36,6 +44,21 @@ private:
     esp_err_t _i2c_init();
     esp_err_t _readRegister(uint8_t reg_addr, uint8_t *data, size_t len);
     esp_err_t _writeRegister(uint8_t reg_addr, uint8_t data);
+
+    uint8_t mapSensor2JoyRange(int32_t value, int32_t min_in, int32_t max_in);
+
+    uint8_t _i2c_addr;
+
+    union regBuffer {        
+        int16_t s_bytes;
+        uint16_t u_bytes;
+        int8_t s_byte[2];
+        uint8_t u_byte[2];
+    } _reg_buffer{0};
+
+    float _float_buffer{0.f};
+
+    esp_err_t _err{ESP_OK};
 
 };
 

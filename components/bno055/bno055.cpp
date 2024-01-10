@@ -147,38 +147,56 @@ static constexpr uint8_t ACC_Config_ADDR        = 0x08;
 #define I2C_MASTER_RX_BUF_DISABLE   0                          /*!< I2C master doesn't need buffer */
 #define I2C_MASTER_TIMEOUT_MS       1000
 
-static constexpr uint8_t BNO055_I2C_ADDR        = 29;
-
 // Conversion Constants
-static constexpr float EULER_BITS_PER_DEGREE    = 16.f;
-static constexpr float EULER_BITS_PER_RADIAN    = 900.f;
-static constexpr float QUA_BITS_PER_QUA         = 2e14f;
+static constexpr float EULER_BITS_PER_DEGREE_F  = 16.f;
+static constexpr float EULER_BITS_PER_RADIAN_F  = 900.f;
+static constexpr float QUA_BITS_PER_QUA_F       = 2e14f;
 
-// Static Variables
-static union regBuffer {        
-    int16_t s_bytes;
-    uint16_t u_bytes;
-    int8_t s_byte[2];
-    uint8_t u_byte[2];
-} _reg_buffer{0};
+static constexpr uint8_t EULER_BITS_PER_DEGREE_I   = 16;
+static constexpr uint16_t EULER_BITS_PER_RADIAN_I  = 900;
+static constexpr uint64_t QUA_BITS_PER_QUA_I       = 2e14;
 
-static float _float_buffer{0.f};
-
-static esp_err_t _err{ESP_OK};
+static constexpr int8_t PITCH_DEGREE_MIN        = -180;
+static constexpr int8_t PITCH_DEGREE_MAX        = 180;
+static constexpr int8_t ROLL_DEGREE_MIN         = -90;
+static constexpr int8_t ROLL_DEGREE_MAX         = 90;
+static constexpr int8_t HEADING_DEGREE_MIN      = 0;
+static constexpr int8_t HEADING_DEGREE_MAX      = 360;
 
 float BNOSensor::eulByte2FloatDegrees(int16_t euler_byte)
 {
-    return static_cast<float>(euler_byte / EULER_BITS_PER_DEGREE);
+    return static_cast<float>(euler_byte / EULER_BITS_PER_DEGREE_F);
 }
 
 float BNOSensor::eulByte2FloatRadians(int16_t euler_byte)
 {
-    return static_cast<float>(euler_byte / EULER_BITS_PER_RADIAN);
+    return static_cast<float>(euler_byte / EULER_BITS_PER_RADIAN_F);
 }
 
 float BNOSensor::quaByte2Float(int16_t qua_byte)
 {
-    return static_cast<float>(qua_byte / QUA_BITS_PER_QUA);
+    return static_cast<float>(qua_byte / QUA_BITS_PER_QUA_F);
+}
+
+uint8_t BNOSensor::pitch2Joy()
+{
+    // -180°..180° -> -2880..2880 -> 0..255
+    return mapSensor2JoyRange(get_eul_pitch(), EULER_BITS_PER_DEGREE_I * PITCH_DEGREE_MIN,
+        EULER_BITS_PER_DEGREE_I * PITCH_DEGREE_MAX);
+}
+
+uint8_t BNOSensor::roll2Joy()
+{
+    // -90°..90° -> -1440..1400 -> 0..255
+    return mapSensor2JoyRange(get_eul_roll(), EULER_BITS_PER_DEGREE_I * ROLL_DEGREE_MIN,
+        EULER_BITS_PER_DEGREE_I * ROLL_DEGREE_MAX);
+}
+
+uint8_t BNOSensor::heading2Joy()
+{
+    // 0°..360° -> 0..5760 -> 0..255
+    return mapSensor2JoyRange(get_eul_heading(), EULER_BITS_PER_DEGREE_I * HEADING_DEGREE_MIN,
+        EULER_BITS_PER_DEGREE_I * HEADING_DEGREE_MAX);
 }
 
 int16_t BNOSensor::get_eul_heading()
@@ -288,16 +306,18 @@ esp_err_t BNOSensor::_i2c_init()
 
 esp_err_t BNOSensor::_readRegister(uint8_t reg_addr, uint8_t *data, size_t len)
 {
-    return i2c_master_write_read_device(I2C_MASTER_NUM, BNO055_I2C_ADDR, &reg_addr, 1, data, len,
+    return i2c_master_write_read_device(I2C_MASTER_NUM, _i2c_addr, &reg_addr, 1, data, len,
         I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
 }
 
 esp_err_t BNOSensor::_writeRegister(uint8_t reg_addr, uint8_t data)
 {
-    int ret;
     uint8_t write_buf[2] = {reg_addr, data};
+    return i2c_master_write_to_device(I2C_MASTER_NUM, _i2c_addr, write_buf, sizeof(write_buf),
+        I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+}
 
-    ret = i2c_master_write_to_device(I2C_MASTER_NUM, BNO055_I2C_ADDR, write_buf, sizeof(write_buf), I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
-
-    return ret;
+uint8_t BNOSensor::mapSensor2JoyRange(int32_t value, int32_t min_in, int32_t max_in)
+{
+    return static_cast<uint8_t>((value - min_in) * __UINT8_MAX__ / (max_in - min_in));
 }
