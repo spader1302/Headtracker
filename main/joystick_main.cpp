@@ -52,7 +52,7 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
 
 #define HIDD_DEVICE_NAME            "Dingo Gamepad"
 
-static constexpr uint8_t BNO055_I2C_ADDR        = 29;
+static constexpr uint8_t BNO055_I2C_ADDR        = 0x29;
 
 #include "bno055.hpp"
 BNOSensor bno(BNO055_I2C_ADDR);
@@ -176,16 +176,17 @@ static void read_joystick_task(void *pvParameter)
     uint16_t last_buttons = 0;
 
     joystick_buttons_event_t ev;
-    QueueHandle_t joystick_buttons_events = *joystick_buttons_init();
+    //QueueHandle_t joystick_buttons_events = *joystick_buttons_init();
 
     while(true) {
+        /*
         ESP_LOGD(HID_JOYSTICK_TAG, "wait for joystick_buttons_events");
 
         if (xQueueReceive(joystick_buttons_events, &ev, 50/portTICK_PERIOD_MS)) {
             ESP_LOGI(HID_JOYSTICK_TAG, "joystick_buttons_events %d", ev.state);
             buttons = ev.state;
         }
-
+        */
         /*
         js1x = readJoystickChannel(ADC1_CHANNEL_1);
         js1y = readJoystickChannel(ADC1_CHANNEL_4);
@@ -197,6 +198,7 @@ static void read_joystick_task(void *pvParameter)
         js1y = bno.roll2Joy();
         js2x = bno.heading2Joy();
         js2y = 0;
+        // ESP_LOGI(HID_JOYSTICK_TAG, "%s js1x: %u", __func__, js1x);
 
         // very simple checksum :)
         current_sum = (js2x<<24) + (js2y<<16) + (js1x<<8) + js1y;
@@ -287,7 +289,30 @@ extern "C" void app_main()
     esp_ble_gap_set_security_param(ESP_BLE_SM_SET_INIT_KEY, &init_key, sizeof(uint8_t));
     esp_ble_gap_set_security_param(ESP_BLE_SM_SET_RSP_KEY, &rsp_key, sizeof(uint8_t));
 
-    if((ret = read_joystick_init()) != ESP_OK) {
+    // start up i2c interface to bno
+    if ((ret = bno.begin()) != ESP_OK)
+    {
+        ESP_LOGE(HID_JOYSTICK_TAG, "%s i2c init failed\n", __func__);
+        ESP_LOGE(HID_JOYSTICK_TAG, "%s", esp_err_to_name(ret));
+    }
+    vTaskDelay(1000/portTICK_PERIOD_MS);
+    // set bno euler angle unit to degree    
+    if ((ret = bno.setUnitMode(EUL_DEG)) != ESP_OK)
+    {
+        ESP_LOGE(HID_JOYSTICK_TAG, "%s bno set unit failed\n", __func__);
+        ESP_LOGE(HID_JOYSTICK_TAG, "%s", esp_err_to_name(ret));
+    }
+    // set operating mode to NDOF, takes 7ms
+    if ((ret = bno.setOpMode(NDOF)) != ESP_OK)
+    {
+        ESP_LOGE(HID_JOYSTICK_TAG, "%s operating mode set failed\n", __func__);
+        ESP_LOGE(HID_JOYSTICK_TAG, "%s", esp_err_to_name(ret));
+    }  
+    vTaskDelay(10/portTICK_PERIOD_MS);
+
+    if((ret = read_joystick_init()) != ESP_OK) 
+    {
         ESP_LOGE(HID_JOYSTICK_TAG, "%s init read joystick failed\n", __func__);
     }
+
 }

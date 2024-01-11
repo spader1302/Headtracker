@@ -1,7 +1,10 @@
 #include <inttypes.h>
 #include "driver/i2c.h"
+#include "esp_log.h"
 
 #include "bno055.hpp"
+
+#define BNO_055_TAG     "BNO055"
 
 // PAGE 0 REGISTER ADDRESS VALUES
 static constexpr uint8_t MAG_RADIUS_MSB_ADDR    = 0x6A;
@@ -139,8 +142,8 @@ static constexpr uint8_t ACC_Config_ADDR        = 0x08;
 // static constexpr uint8_t PAGE_ID_ADDR        = 0x07;        // same as in page 0
 
 // I2C
-#define I2C_MASTER_SCL_IO           19                         /*!< GPIO number used for I2C master clock */
-#define I2C_MASTER_SDA_IO           18                         /*!< GPIO number used for I2C master data  */
+#define I2C_MASTER_SCL_IO           1                          /*!< GPIO number used for I2C master clock */
+#define I2C_MASTER_SDA_IO           2                          /*!< GPIO number used for I2C master data  */
 #define I2C_MASTER_NUM              I2C_NUM_0                  /*!< I2C master i2c port number, the number of i2c peripheral interfaces available will depend on the chip */
 #define I2C_MASTER_FREQ_HZ          400000                     /*!< I2C master clock frequency */
 #define I2C_MASTER_TX_BUF_DISABLE   0                          /*!< I2C master doesn't need buffer */
@@ -163,6 +166,11 @@ static constexpr int8_t ROLL_DEGREE_MAX         = 90;
 static constexpr int8_t HEADING_DEGREE_MIN      = 0;
 static constexpr int8_t HEADING_DEGREE_MAX      = 360;
 
+esp_err_t BNOSensor::begin()
+{
+    return _i2c_init();
+}
+
 float BNOSensor::eulByte2FloatDegrees(int16_t euler_byte)
 {
     return static_cast<float>(euler_byte / EULER_BITS_PER_DEGREE_F);
@@ -181,6 +189,8 @@ float BNOSensor::quaByte2Float(int16_t qua_byte)
 uint8_t BNOSensor::pitch2Joy()
 {
     // -180°..180° -> -2880..2880 -> 0..255
+    // sensor output has to be configured to euler angles
+    // ESP_LOGI(BNO_055_TAG, "%s raw pitch: %d", __func__, get_eul_pitch());
     return mapSensor2JoyRange(get_eul_pitch(), EULER_BITS_PER_DEGREE_I * PITCH_DEGREE_MIN,
         EULER_BITS_PER_DEGREE_I * PITCH_DEGREE_MAX);
 }
@@ -188,6 +198,7 @@ uint8_t BNOSensor::pitch2Joy()
 uint8_t BNOSensor::roll2Joy()
 {
     // -90°..90° -> -1440..1400 -> 0..255
+    // sensor output has to be configured to euler angles
     return mapSensor2JoyRange(get_eul_roll(), EULER_BITS_PER_DEGREE_I * ROLL_DEGREE_MIN,
         EULER_BITS_PER_DEGREE_I * ROLL_DEGREE_MAX);
 }
@@ -195,43 +206,102 @@ uint8_t BNOSensor::roll2Joy()
 uint8_t BNOSensor::heading2Joy()
 {
     // 0°..360° -> 0..5760 -> 0..255
+    // sensor output has to be configured to euler angles
     return mapSensor2JoyRange(get_eul_heading(), EULER_BITS_PER_DEGREE_I * HEADING_DEGREE_MIN,
         EULER_BITS_PER_DEGREE_I * HEADING_DEGREE_MAX);
 }
 
+esp_err_t BNOSensor::setOpMode(bno_operating_mode_t mode)
+{
+    return _writeRegister(OPR_MODE_ADDR, static_cast<uint8_t>(mode));
+}
+
+esp_err_t BNOSensor::setPwrMode(bno_power_mode_t mode)
+{
+    return _writeRegister(PWR_MODE_ADDR, static_cast<uint8_t>(mode));
+}
+
+esp_err_t BNOSensor::setUnitMode(bno_unit_selection_t unit_mode)
+{
+    uint8_t unit_reg;
+
+    esp_err_t err = _readRegister(UNIT_SEL_ADDR, &unit_reg, 1);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(BNO_055_TAG, "%s error while reading from register\n", __func__);
+        return err;
+    }
+
+    switch (unit_mode)
+    {
+        case ACC_M_P_SS:
+            unit_reg &= ~(1<<0);
+            break;
+        case ACC_MG:
+            unit_reg |= (1<<0);
+            break;
+        case ANG_DPS:
+            unit_reg &= ~(1<<1);
+            break;
+        case ANG_RPS:
+            unit_reg |= (1<<1);
+            break;
+        case EUL_DEG:
+            unit_reg &= ~(1<<2);
+            break;
+        case EUL_RAD:
+            unit_reg |= (1<<2);
+            break;
+        case TEMP_C:
+            unit_reg &= ~(1<<4);
+            break;
+        case TEMP_F:
+            unit_reg |= (1<<4);
+            break;
+        case DATA_WIN:
+            unit_reg &= ~(1<<7);
+            break;
+        case DATA_AND:
+            unit_reg |= (1<<7);
+            break;
+    }
+
+    return _writeRegister(UNIT_SEL_ADDR, unit_reg);
+}
+
 int16_t BNOSensor::get_eul_heading()
 {
-    return _readRegister2ByteSigned(EUL_Heading_MSB_ADDR);
+    return _readRegister2ByteSigned(EUL_Heading_LSB_ADDR);
 }
 
 int16_t BNOSensor::get_eul_roll()
 {
-    return _readRegister2ByteSigned(EUL_Roll_MSB_ADDR);
+    return _readRegister2ByteSigned(EUL_Roll_LSB_ADDR);
 }
 
 int16_t BNOSensor::get_eul_pitch()
 {
-    return _readRegister2ByteSigned(EUL_Pitch_MSB_ADDR);
+    return _readRegister2ByteSigned(EUL_Pitch_LSB_ADDR);
 }
 
 int16_t BNOSensor::get_qua_w()
 {
-    return _readRegister2ByteSigned(QUA_Data_w_MSB_ADDR);
+    return _readRegister2ByteSigned(QUA_Data_w_LSB_ADDR);
 }
 
 int16_t BNOSensor::get_qua_x()
 {
-    return _readRegister2ByteSigned(QUA_Data_x_MSB_ADDR);
+    return _readRegister2ByteSigned(QUA_Data_x_LSB_ADDR);
 }
 
 int16_t BNOSensor::get_qua_y()
 {
-    return _readRegister2ByteSigned(QUA_Data_y_MSB_ADDR);
+    return _readRegister2ByteSigned(QUA_Data_y_LSB_ADDR);
 }
 
 int16_t BNOSensor::get_qua_z()
 {
-    return _readRegister2ByteSigned(QUA_Data_z_MSB_ADDR);
+    return _readRegister2ByteSigned(QUA_Data_z_LSB_ADDR);
 }
 
 int16_t BNOSensor::_readRegister2ByteSigned(uint8_t reg_addr)
