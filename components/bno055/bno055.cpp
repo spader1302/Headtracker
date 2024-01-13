@@ -155,65 +155,29 @@ static constexpr float EULER_BITS_PER_DEGREE_F  = 16.f;
 static constexpr float EULER_BITS_PER_RADIAN_F  = 900.f;
 static constexpr float QUA_BITS_PER_QUA_F       = 2e14f;
 
-static constexpr uint8_t EULER_BITS_PER_DEGREE_I   = 16;
-static constexpr uint16_t EULER_BITS_PER_RADIAN_I  = 900;
-static constexpr uint64_t QUA_BITS_PER_QUA_I       = 2e14;
-
-static constexpr int8_t PITCH_DEGREE_MIN        = -180;
-static constexpr int8_t PITCH_DEGREE_MAX        = 180;
-static constexpr int8_t ROLL_DEGREE_MIN         = -90;
-static constexpr int8_t ROLL_DEGREE_MAX         = 90;
-static constexpr int8_t HEADING_DEGREE_MIN      = 0;
-static constexpr int8_t HEADING_DEGREE_MAX      = 360;
+// BNO055 Timing Constants
+static constexpr TickType_t DELAY_INIT_MS         = 3000;
+static constexpr TickType_t DELAY_OPMODE_MS       = 20;
 
 esp_err_t BNOSensor::begin()
 {
-    return _i2c_init();
-}
-
-float BNOSensor::eulByte2FloatDegrees(int16_t euler_byte)
-{
-    return static_cast<float>(euler_byte / EULER_BITS_PER_DEGREE_F);
-}
-
-float BNOSensor::eulByte2FloatRadians(int16_t euler_byte)
-{
-    return static_cast<float>(euler_byte / EULER_BITS_PER_RADIAN_F);
-}
-
-float BNOSensor::quaByte2Float(int16_t qua_byte)
-{
-    return static_cast<float>(qua_byte / QUA_BITS_PER_QUA_F);
-}
-
-uint8_t BNOSensor::pitch2Joy()
-{
-    // -180°..180° -> -2880..2880 -> 0..255
-    // sensor output has to be configured to euler angles
-    // ESP_LOGI(BNO_055_TAG, "%s raw pitch: %d", __func__, get_eul_pitch());
-    return mapSensor2JoyRange(get_eul_pitch(), EULER_BITS_PER_DEGREE_I * PITCH_DEGREE_MIN,
-        EULER_BITS_PER_DEGREE_I * PITCH_DEGREE_MAX);
-}
-
-uint8_t BNOSensor::roll2Joy()
-{
-    // -90°..90° -> -1440..1400 -> 0..255
-    // sensor output has to be configured to euler angles
-    return mapSensor2JoyRange(get_eul_roll(), EULER_BITS_PER_DEGREE_I * ROLL_DEGREE_MIN,
-        EULER_BITS_PER_DEGREE_I * ROLL_DEGREE_MAX);
-}
-
-uint8_t BNOSensor::heading2Joy()
-{
-    // 0°..360° -> 0..5760 -> 0..255
-    // sensor output has to be configured to euler angles
-    return mapSensor2JoyRange(get_eul_heading(), EULER_BITS_PER_DEGREE_I * HEADING_DEGREE_MIN,
-        EULER_BITS_PER_DEGREE_I * HEADING_DEGREE_MAX);
+    esp_err_t err;
+    if ((err = _i2c_init()) == ESP_OK)
+    {
+        vTaskDelay(DELAY_INIT_MS / portTICK_PERIOD_MS);
+    }
+    return err;
 }
 
 esp_err_t BNOSensor::setOpMode(bno_operating_mode_t mode)
 {
-    return _writeRegister(OPR_MODE_ADDR, static_cast<uint8_t>(mode));
+    esp_err_t err;
+    if ((err = _writeRegister(OPR_MODE_ADDR, static_cast<uint8_t>(mode))) == ESP_OK)
+    {
+        _mode = mode;
+        vTaskDelay(DELAY_OPMODE_MS / portTICK_PERIOD_MS);
+    }
+    return err;
 }
 
 esp_err_t BNOSensor::setPwrMode(bno_power_mode_t mode)
@@ -235,39 +199,92 @@ esp_err_t BNOSensor::setUnitMode(bno_unit_selection_t unit_mode)
     switch (unit_mode)
     {
         case ACC_M_P_SS:
-            unit_reg &= ~(1<<0);
+            unit_reg &= ~(1<<0);    // set bit to zero
             break;
         case ACC_MG:
-            unit_reg |= (1<<0);
+            unit_reg |= (1<<0);     // set bit to one
             break;
         case ANG_DPS:
-            unit_reg &= ~(1<<1);
+            unit_reg &= ~(1<<1);    // set bit to zero
             break;
         case ANG_RPS:
-            unit_reg |= (1<<1);
+            unit_reg |= (1<<1);     // set bit to one
             break;
         case EUL_DEG:
-            unit_reg &= ~(1<<2);
+            unit_reg &= ~(1<<2);    // set bit to zero
             break;
         case EUL_RAD:
-            unit_reg |= (1<<2);
+            unit_reg |= (1<<2);     // set bit to one
             break;
         case TEMP_C:
-            unit_reg &= ~(1<<4);
+            unit_reg &= ~(1<<4);    // set bit to zero
             break;
         case TEMP_F:
-            unit_reg |= (1<<4);
+            unit_reg |= (1<<4);     // set bit to one
             break;
         case DATA_WIN:
-            unit_reg &= ~(1<<7);
+            unit_reg &= ~(1<<7);    // set bit to zero
             break;
         case DATA_AND:
-            unit_reg |= (1<<7);
+            unit_reg |= (1<<7);     // set bit to one
             break;
     }
 
     return _writeRegister(UNIT_SEL_ADDR, unit_reg);
 }
+
+esp_err_t BNOSensor::remapAxes(bno_axis_t x_axis, bno_axis_t y_axis, bno_axis_t z_axis)
+{
+    // the same axis cannot be assigned to multiple sensor axes
+    if (x_axis == y_axis || x_axis == z_axis || y_axis == z_axis)
+    {
+        return ESP_ERR_INVALID_ARG;
+        ESP_LOGE(BNO_055_TAG, "%s axis cannot be the same, x:%d, y:%d, z:%d", __func__, x_axis, y_axis, z_axis);
+    }
+
+    if (_mode != CONFIG_MODE)
+    {
+        return ESP_ERR_INVALID_STATE;
+        ESP_LOGE(BNO_055_TAG, "%s Sensor not in config mode", __func__);
+    }
+
+    uint8_t data = (static_cast<uint8_t>(x_axis))
+                 + (static_cast<uint8_t>(y_axis) << 2)
+                 + (static_cast<uint8_t>(z_axis) << 4);
+
+    return _writeRegister(AXIS_MAP_CONFIG_ADDR, data);
+}
+
+esp_err_t BNOSensor::invertAxes(bool x_axis_inv, bool y_axis_inv, bool z_axis_inv)
+{
+    if (_mode != CONFIG_MODE)
+    {
+        return ESP_ERR_INVALID_STATE;
+        ESP_LOGE(BNO_055_TAG, "%s Sensor not in config mode", __func__);
+    }
+
+    uint8_t data = (static_cast<uint8_t>(x_axis_inv) << 2)
+                 + (static_cast<uint8_t>(y_axis_inv) << 1)
+                 + (static_cast<uint8_t>(z_axis_inv));
+
+    return _writeRegister(AXIS_MAP_SIGN_ADDR, data);
+}
+
+int16_t BNOSensor::get_grav_x()
+{
+    return _readRegister2ByteSigned(GRV_Data_X_LSB_ADDR);
+}
+
+int16_t BNOSensor::get_grav_y()
+{
+    return _readRegister2ByteSigned(GRV_Data_Y_LSB_ADDR);
+}
+
+int16_t BNOSensor::get_grav_z()
+{
+    return _readRegister2ByteSigned(GRV_Data_Z_LSB_ADDR);
+}
+
 
 int16_t BNOSensor::get_eul_heading()
 {
@@ -385,9 +402,4 @@ esp_err_t BNOSensor::_writeRegister(uint8_t reg_addr, uint8_t data)
     uint8_t write_buf[2] = {reg_addr, data};
     return i2c_master_write_to_device(I2C_MASTER_NUM, _i2c_addr, write_buf, sizeof(write_buf),
         I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
-}
-
-uint8_t BNOSensor::mapSensor2JoyRange(int32_t value, int32_t min_in, int32_t max_in)
-{
-    return static_cast<uint8_t>((value - min_in) * __UINT8_MAX__ / (max_in - min_in));
 }

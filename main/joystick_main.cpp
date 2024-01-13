@@ -55,7 +55,10 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
 static constexpr uint8_t BNO055_I2C_ADDR        = 0x29;
 
 #include "bno055.hpp"
+#include "tracker.hpp"
+
 BNOSensor bno(BNO055_I2C_ADDR);
+Tracker tracker(&bno);
 
 static uint8_t hidd_service_uuid128[] = {
     /* LSB <--------------------------------------------------------------------------------> MSB */
@@ -194,9 +197,11 @@ static void read_joystick_task(void *pvParameter)
         js2y = readJoystickChannel(ADC1_CHANNEL_3);
         */
 
-        js1x = bno.pitch2Joy();
-        js1y = bno.roll2Joy();
-        js2x = bno.heading2Joy();
+        tracker.updateAxisValues();
+
+        js1x = tracker.getX();
+        js1y = tracker.getY();
+        js2x = tracker.getZ();
         js2y = 0;
         // ESP_LOGI(HID_JOYSTICK_TAG, "%s js1x: %u", __func__, js1x);
 
@@ -289,27 +294,30 @@ extern "C" void app_main()
     esp_ble_gap_set_security_param(ESP_BLE_SM_SET_INIT_KEY, &init_key, sizeof(uint8_t));
     esp_ble_gap_set_security_param(ESP_BLE_SM_SET_RSP_KEY, &rsp_key, sizeof(uint8_t));
 
-    // start up i2c interface to bno
+    // start up i2c interface to bno, takes ~3s
     if ((ret = bno.begin()) != ESP_OK)
     {
         ESP_LOGE(HID_JOYSTICK_TAG, "%s i2c init failed\n", __func__);
         ESP_LOGE(HID_JOYSTICK_TAG, "%s", esp_err_to_name(ret));
+        return;
     }
-    vTaskDelay(1000/portTICK_PERIOD_MS);
+    
     // set bno euler angle unit to degree    
-    if ((ret = bno.setUnitMode(EUL_DEG)) != ESP_OK)
+    while ((ret = bno.setUnitMode(EUL_DEG)) != ESP_OK)
     {
-        ESP_LOGE(HID_JOYSTICK_TAG, "%s bno set unit failed\n", __func__);
+        ESP_LOGE(HID_JOYSTICK_TAG, "%s bno set unit failed, retrying..\n", __func__);
         ESP_LOGE(HID_JOYSTICK_TAG, "%s", esp_err_to_name(ret));
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
-    // set operating mode to NDOF, takes 7ms
+
+    // set operating mode to NDOF, takes ~20ms
     if ((ret = bno.setOpMode(NDOF)) != ESP_OK)
     {
         ESP_LOGE(HID_JOYSTICK_TAG, "%s operating mode set failed\n", __func__);
         ESP_LOGE(HID_JOYSTICK_TAG, "%s", esp_err_to_name(ret));
-    }  
-    vTaskDelay(10/portTICK_PERIOD_MS);
+    }
 
+    // start sending joystick values
     if((ret = read_joystick_init()) != ESP_OK) 
     {
         ESP_LOGE(HID_JOYSTICK_TAG, "%s init read joystick failed\n", __func__);

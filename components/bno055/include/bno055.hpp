@@ -3,12 +3,44 @@
 
 #include "esp_err.h"
 
+namespace bno_ranges
+{
+
+    static constexpr uint16_t EULER_BITS_PER_DEGREE     = 16;
+    static constexpr uint16_t EULER_BITS_PER_RADIAN     = 900;
+    static constexpr uint64_t QUA_BITS_PER_QUA          = 2e14;
+
+
+    static constexpr int32_t PITCH_DEGREE_MIN           = -90;
+    static constexpr int32_t PITCH_DEGREE_MAX           = 90;
+    static constexpr int32_t ROLL_DEGREE_MIN            = -90;
+    static constexpr int32_t ROLL_DEGREE_MAX            = 90;
+    static constexpr int32_t HEADING_DEGREE_MIN         = -90;
+    static constexpr int32_t HEADING_DEGREE_MAX         = 90;
+
+    static constexpr int32_t PITCH_DEGREE_MIN_FULL      = -180;
+    static constexpr int32_t PITCH_DEGREE_MAX_FULL      = 180;
+    static constexpr int32_t ROLL_DEGREE_MIN_FULL       = -90;
+    static constexpr int32_t ROLL_DEGREE_MAX_FULL       = 90;
+    static constexpr int32_t HEADING_DEGREE_MIN_FULL    = 0;
+    static constexpr int32_t HEADING_DEGREE_MAX_FULL    = 360;
+
+}; // bno_ranges
+
+// rotational axes
 typedef enum {
     HEADING = 0,
     YAW = 0,
     ROLL,
     PITCH,
 } bno_rotation_axis_t;
+
+// lateral axes
+typedef enum {
+    X_AXIS,
+    Y_AXIS,
+    Z_AXIS,
+} bno_axis_t;
 
 typedef enum {
     // config mode
@@ -56,23 +88,29 @@ public:
         _i2c_addr{i2c_addr}
         {}
     
+    // takes ~3s to initialize i2c bus
     esp_err_t begin();
-
-    float eulByte2FloatDegrees(int16_t euler_byte);
-    float eulByte2FloatRadians(int16_t euler_byte);
-    float quaByte2Float(int16_t qua_byte);
-
-    uint8_t pitch2Joy();
-    uint8_t roll2Joy();
-    uint8_t heading2Joy();
 
     esp_err_t setOpMode(bno_operating_mode_t mode);
     esp_err_t setPwrMode(bno_power_mode_t mode);
     esp_err_t setUnitMode(bno_unit_selection_t unit_mode);
 
+    esp_err_t remapAxes(bno_axis_t x_axis, bno_axis_t y_axis, bno_axis_t z_axis);
+
+    //true for inverted axes
+    esp_err_t invertAxes(bool x_axis_inv, bool y_axis_inv, bool z_axis_inv);
+
+    // output in 1m/s² / 100bit or 1mg / 1bit
+    int16_t get_grav_x();
+    int16_t get_grav_y();
+    int16_t get_grav_z();
+
+    //output in 1° / 16bit or 1rad / 900bit
     int16_t get_eul_heading();
     int16_t get_eul_roll();
     int16_t get_eul_pitch();
+
+    // output in 1quat / 2^14bit
     int16_t get_qua_w();
     int16_t get_qua_x();
     int16_t get_qua_y();
@@ -89,8 +127,6 @@ private:
     esp_err_t _readRegister(uint8_t reg_addr, uint8_t *data, size_t len);
     esp_err_t _writeRegister(uint8_t reg_addr, uint8_t data);
 
-    uint8_t mapSensor2JoyRange(int32_t value, int32_t min_in, int32_t max_in);
-
     uint8_t _i2c_addr;
 
     union regBuffer {        
@@ -103,6 +139,8 @@ private:
     float _float_buffer{0.f};
 
     esp_err_t _err{ESP_OK};
+
+    bno_operating_mode_t _mode{CONFIG_MODE};
 
 };
 
