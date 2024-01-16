@@ -35,6 +35,13 @@ private:
         uint8_t z;
     } _joy_axes{UINT8_MAX / 2};
 
+    struct center_offset
+    {
+        int16_t x;
+        int16_t y;
+        int16_t z;
+    } _center_offset{0};
+
     BNOSensor *_bno;
 
 };

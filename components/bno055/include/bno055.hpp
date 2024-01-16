@@ -2,6 +2,7 @@
 #define __BNO_055__HPP__
 
 #include "esp_err.h"
+#include "limited_int.hpp"
 
 namespace bno_ranges
 {
@@ -80,6 +81,15 @@ typedef enum {
     DATA_AND,       // fusion data output format [Android]
 } bno_unit_selection_t;
 
+typedef lim_int16_t<bno_ranges::PITCH_DEGREE_MIN_FULL * bno_ranges::EULER_BITS_PER_DEGREE,
+    bno_ranges::PITCH_DEGREE_MAX_FULL * bno_ranges::EULER_BITS_PER_DEGREE> pitch_int_t;
+
+typedef lim_int16_t<bno_ranges::ROLL_DEGREE_MIN_FULL * bno_ranges::EULER_BITS_PER_DEGREE,
+    bno_ranges::ROLL_DEGREE_MAX_FULL * bno_ranges::EULER_BITS_PER_DEGREE> roll_int_t;
+
+typedef lim_int16_t<bno_ranges::HEADING_DEGREE_MIN_FULL * bno_ranges::EULER_BITS_PER_DEGREE,
+    bno_ranges::HEADING_DEGREE_MAX_FULL * bno_ranges::EULER_BITS_PER_DEGREE> heading_int_t;
+
 class BNOSensor {
 
 public:
@@ -99,6 +109,10 @@ public:
 
     //true for inverted axes
     esp_err_t invertAxes(bool x_axis_inv, bool y_axis_inv, bool z_axis_inv);
+
+    pitch_int_t getPitch();
+    roll_int_t getRoll();
+    heading_int_t getHeading();
 
     // output in 1m/s² / 100bit or 1mg / 1bit
     int16_t get_grav_x();

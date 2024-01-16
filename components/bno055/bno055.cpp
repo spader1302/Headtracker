@@ -270,6 +270,21 @@ esp_err_t BNOSensor::invertAxes(bool x_axis_inv, bool y_axis_inv, bool z_axis_in
     return _writeRegister(AXIS_MAP_SIGN_ADDR, data);
 }
 
+pitch_int_t BNOSensor::getPitch()
+{
+    return pitch_int_t(get_eul_pitch());
+}
+
+roll_int_t BNOSensor::getRoll()
+{
+    return roll_int_t(get_eul_roll());
+}
+
+heading_int_t BNOSensor::getHeading()
+{
+    return heading_int_t(get_eul_heading());
+}
+
 int16_t BNOSensor::get_grav_x()
 {
     return _readRegister2ByteSigned(GRV_Data_X_LSB_ADDR);
