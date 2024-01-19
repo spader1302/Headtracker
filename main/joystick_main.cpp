@@ -197,8 +197,6 @@ static void read_joystick_task(void *pvParameter)
         js2y = readJoystickChannel(ADC1_CHANNEL_3);
         */
 
-        tracker.updateAxisValues();
-
         js1x = tracker.getX();
         js1y = tracker.getY();
         js2x = tracker.getZ();

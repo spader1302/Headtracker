@@ -17,8 +17,8 @@ public:
     operator int16_t () const { return data; }
 
     // pre increment and decrement operators
-    lim_int16_t& operator++() { if(data==max) data = min; else ++data; return *this; }
-    lim_int16_t& operator--() { if(data==min) data = max; else --data; return *this; }
+    lim_int16_t& operator++() { if(data==max) data = min + 1; else ++data; return *this; }
+    lim_int16_t& operator--() { if(data==min) data = max - 1; else --data; return *this; }
 
     // post increment and decrement operators
     lim_int16_t operator++(int) { lim_int16_t rv(*this); ++*this; return rv; }
@@ -48,6 +48,10 @@ public:
         while (_checkRange());
         return *this;
     }
+
+    static constexpr int16_t MAX = max;
+    static constexpr int16_t MIN = min;
+    
 private:
 
     bool _checkRange() {
