@@ -14,22 +14,30 @@ public:
 
     void init();
     void center();
-    uint8_t getX();
-    uint8_t getY();
-    uint8_t getZ();    
+    uint16_t getX();
+    uint16_t getY();
+    uint16_t getZ();    
 
 private:
 
     template<class T>
-    uint8_t _mapSensor2JoyRange(T value);
-    uint8_t _mapSensor2JoyRange(int32_t value, int32_t min_in, int32_t max_in);
+    uint16_t _mapSensor2JoyRange(T value);
+    uint16_t _mapSensor2JoyRange(int64_t value, int64_t min_in, int64_t max_in);
 
+    /*
     struct center_offset
     {
         pitch_int_t pitch;
         roll_int_t roll;
         heading_int_t heading;
     } _center_offset{0};
+    */
+   struct center_offset
+   {
+        uint16_t x{__UINT16_MAX__ / 2};
+        uint16_t y{0};
+        uint16_t z{0};
+   } _center_offset;
 
     BNOSensor *_bno;
 

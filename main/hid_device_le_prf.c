@@ -38,11 +38,11 @@ static hid_report_map_t hid_rpt_map[HID_NUM_REPORTS];
 // Keyboard report descriptor (using format for Boot interface descriptor)
 static const uint8_t hidReportMap[] = {
     0x05, 0x01,  // Usage Page (Generic Desktop)
-    0x09, 0x05,  // Usage (Gamepad)
+    0x09, 0x04,  // Usage (Joystick)
     0xA1, 0x01,  // Collection (Application)
     0x85, 0x01,  // Report Id (1)
     0xA1, 0x00,  //   Collection (Physical)
-
+/*  // no buttons
     0x05, 0x09,  //     Usage Page (Buttons)
     0x19, 0x01,  //     Usage Minimum (01) - Button 1
     0x29, 0x10,  //     Usage Maximum (16) - Button 16
@@ -51,15 +51,16 @@ static const uint8_t hidReportMap[] = {
     0x95, 0x10,  //     Report Count (16)
     0x75, 0x01,  //     Report Size (1)
     0x81, 0x02,  //     Input (Data, Variable, Absolute) - Button states
+*/
     0x05, 0x01,  //     Usage Page (Generic Desktop)
     0x09, 0x30,  //     Usage (X)
     0x09, 0x31,  //     Usage (Y)
     0x09, 0x32,  //     Usage (Z)
-    0x09, 0x33,  //     Usage (Rx)
-    0x15, 0x81,  //     Logical Minimum (-127)
-    0x25, 0x7F,  //     Logical Maximum (127)
-    0x95, 0x04,  //     Report Count (4)
-    0x75, 0x08,  //     Report Size (8)
+    //0x09, 0x33,  //     Usage (Rx)
+    0x16, 0x01, 0x80,  //     Logical Minimum (-32767)
+    0x26, 0xFF, 0x7F,  //     Logical Maximum (32767)
+    0x95, 0x03,  //     Report Count (3)
+    0x75, 0x10,  //     Report Size (16)
     0x81, 0x02,  //     Input (Data, Variable, Absolute) - X & Y coordinate
 
     0xC0,        //   End Collection

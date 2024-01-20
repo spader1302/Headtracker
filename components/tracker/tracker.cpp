@@ -8,39 +8,37 @@ void Tracker::init()
 
 void Tracker::center()
 {
-    _center_offset.pitch = _bno->getPitch();
-    _center_offset.roll = _bno->getRoll();
-    _center_offset.heading = _bno->getHeading();
+    _center_offset.y = _mapSensor2JoyRange(_bno->getPitch());
+    _center_offset.z = _mapSensor2JoyRange(_bno->getRoll());
+    _center_offset.x = _mapSensor2JoyRange(_bno->getHeading());
 }
 
-uint8_t Tracker::getX()
+uint16_t Tracker::getX()
 {
-    return _mapSensor2JoyRange(_bno->getHeading() - _center_offset.heading);
+    return _mapSensor2JoyRange(_bno->getHeading()) - _center_offset.x;
 }
 
-uint8_t Tracker::getY()
+uint16_t Tracker::getY()
 {
-    return _mapSensor2JoyRange(_bno->getPitch() - _center_offset.pitch);
+    return _mapSensor2JoyRange(_bno->getPitch()) - _center_offset.y;
 }
 
-uint8_t Tracker::getZ()
+uint16_t Tracker::getZ()
 {
-    return _mapSensor2JoyRange(_bno->getRoll() - _center_offset.roll);
+    return _mapSensor2JoyRange(_bno->getRoll()) - _center_offset.z;
 }
 
 template<class T>
-uint8_t Tracker::_mapSensor2JoyRange(T value)
+uint16_t Tracker::_mapSensor2JoyRange(T value)
 {
-    return _mapSensor2JoyRange(value,
-        bno_ranges::EULER_BITS_PER_DEGREE * value.MIN,
-        bno_ranges::EULER_BITS_PER_DEGREE * value.MAX);
+    return _mapSensor2JoyRange(static_cast<int32_t>(value), value.MIN, value.MAX);
 }
 
-uint8_t Tracker::_mapSensor2JoyRange(int32_t sensor_value, int32_t min_in, int32_t max_in)
+uint16_t Tracker::_mapSensor2JoyRange(int64_t sensor_value, int64_t min_in, int64_t max_in)
 {
     if (sensor_value > max_in)
     {
-        return UINT8_MAX;
+        return UINT16_MAX;
     } 
     else if (sensor_value < min_in)
     {
@@ -48,7 +46,7 @@ uint8_t Tracker::_mapSensor2JoyRange(int32_t sensor_value, int32_t min_in, int32
     }
     else
     {
-        return static_cast<uint8_t>((sensor_value - min_in) * __UINT8_MAX__ / (max_in - min_in));
+        return static_cast<uint16_t>((sensor_value - min_in) * __UINT16_MAX__ / (max_in - min_in));
     }    
 }
     

@@ -171,7 +171,7 @@ static uint8_t readJoystickChannel(adc1_channel_t channel)
 
 static void read_joystick_task(void *pvParameter)
 {
-    uint8_t js1x,js1y,js2x,js2y;
+    uint16_t js1x,js1y,js2x,js2y;
     uint32_t current_sum;
 
     uint16_t buttons = 0;
@@ -204,19 +204,20 @@ static void read_joystick_task(void *pvParameter)
         // ESP_LOGI(HID_JOYSTICK_TAG, "%s js1x: %u", __func__, js1x);
 
         // very simple checksum :)
-        current_sum = (js2x<<24) + (js2y<<16) + (js1x<<8) + js1y;
+        //current_sum = (js2x<<24) + (js2y<<16) + (js1x<<8) + js1y;
 
         ESP_LOGD(HID_JOYSTICK_TAG, "last_sum %d", (int)last_sum);
 
         // only transmit if something changed
-        if (current_sum != last_sum || last_buttons != buttons) {
+        if (true/*current_sum != last_sum || last_buttons != buttons*/) {
             ESP_LOGD(HID_JOYSTICK_TAG, "send buttons %d JS1 X=%d Y=%d JS2 X=%d Y=%d", buttons, js1x, js1y, js2x, js2y);
             esp_hidd_send_joystick_value(hid_conn_id, buttons, js1x, js1y, js2x, js2y);
+            //ESP_LOGE(HID_JOYSTICK_TAG, "joy: %d, custom: %d, raw: %d", js1x, static_cast<int16_t>(bno.getHeading()), bno.get_eul_heading());
         }
 
         // used to detect state changes which trigger sending a packet
-        last_sum = current_sum;
-        last_buttons = buttons;
+        //last_sum = current_sum;
+        //last_buttons = buttons;
     }
 
 }

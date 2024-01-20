@@ -12,12 +12,12 @@ namespace bno_ranges
     static constexpr uint64_t QUA_BITS_PER_QUA          = 2e14;
 
 
-    static constexpr int32_t PITCH_DEGREE_MIN           = -90;
-    static constexpr int32_t PITCH_DEGREE_MAX           = 90;
+    static constexpr int32_t PITCH_DEGREE_MIN           = -180;
+    static constexpr int32_t PITCH_DEGREE_MAX           = 180;
     static constexpr int32_t ROLL_DEGREE_MIN            = -90;
     static constexpr int32_t ROLL_DEGREE_MAX            = 90;
-    static constexpr int32_t HEADING_DEGREE_MIN         = -90;
-    static constexpr int32_t HEADING_DEGREE_MAX         = 90;
+    static constexpr int32_t HEADING_DEGREE_MIN         = 0;
+    static constexpr int32_t HEADING_DEGREE_MAX         = 360;
 
     static constexpr int32_t PITCH_DEGREE_MIN_FULL      = -180;
     static constexpr int32_t PITCH_DEGREE_MAX_FULL      = 180;
