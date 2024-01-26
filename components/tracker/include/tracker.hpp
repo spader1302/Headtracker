@@ -34,9 +34,9 @@ private:
     */
    struct center_offset
    {
-        uint16_t x{__UINT16_MAX__ / 2};
-        uint16_t y{0};
-        uint16_t z{0};
+        int16_t x{0};
+        int16_t y{0};
+        int16_t z{0};
    } _center_offset;
 
     BNOSensor *_bno;

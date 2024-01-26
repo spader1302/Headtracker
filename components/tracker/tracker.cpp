@@ -8,9 +8,9 @@ void Tracker::init()
 
 void Tracker::center()
 {
-    _center_offset.y = _mapSensor2JoyRange(_bno->getPitch());
-    _center_offset.z = _mapSensor2JoyRange(_bno->getRoll());
-    _center_offset.x = _mapSensor2JoyRange(_bno->getHeading());
+    _center_offset.y = static_cast<int16_t>(_mapSensor2JoyRange(_bno->getPitch())) - UINT16_MAX / 2;
+    _center_offset.z = static_cast<int16_t>(_mapSensor2JoyRange(_bno->getRoll())) - UINT16_MAX / 2;
+    _center_offset.x = static_cast<int16_t>(_mapSensor2JoyRange(_bno->getHeading())) - UINT16_MAX / 2;
 }
 
 uint16_t Tracker::getX()

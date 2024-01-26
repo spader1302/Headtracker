@@ -196,7 +196,7 @@ static void write_joystick_task(void *pvParameter)
 
         if (current_sum != last_sum)
         {
-            ESP_LOGE(HID_JOYSTICK_TAG, "X=%d Y=%d Z=%d", js1x, js1y, js1z);
+            ESP_LOGD(HID_JOYSTICK_TAG, "X=%d Y=%d Z=%d", js1x, js1y, js1z);
             esp_hidd_send_joystick_value(hid_conn_id, js1x, js1y, js1z);
 
             last_sum = current_sum;
@@ -220,8 +220,22 @@ static void gpio_task_input(void* arg)
             //printf("GPIO[%"PRIu32"] intr, val: %d\n", io_num, gpio_get_level(io_num));
             switch (io_num) {
                 case GPIO_BUTTON_PIN:
-                    // turn off power
-                    gpio_set_level(GPIO_POWER_PIN, 0);
+                    vTaskDelay(500 / portTICK_PERIOD_MS);
+                    if (!gpio_get_level(GPIO_BUTTON_PIN))
+                    {
+                        // center
+                        ESP_LOGI(HID_JOYSTICK_TAG, "%s center\n", __func__);
+                        tracker.center();
+                        break;
+                    }
+                    vTaskDelay(1000 / portTICK_PERIOD_MS);
+                    if (gpio_get_level(GPIO_BUTTON_PIN))
+                    {
+                        // turn off LED
+                        gpio_set_level(GPIO_LED_PIN, 0);
+                        // turn off power
+                        gpio_set_level(GPIO_POWER_PIN, 0);
+                    }                    
                     break;
                 case GPIO_BNO_INTERRUPT_PIN:
                     //write_joystick_task();
