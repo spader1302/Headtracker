@@ -60,6 +60,24 @@ static constexpr uint8_t BNO055_I2C_ADDR        = 0x29;
 BNOSensor bno(BNO055_I2C_ADDR);
 Tracker tracker(&bno);
 
+static constexpr gpio_num_t GPIO_POWER_PIN = GPIO_NUM_18;
+static constexpr gpio_num_t GPIO_BUTTON_PIN = GPIO_NUM_10;
+static constexpr gpio_num_t GPIO_LED_PIN = GPIO_NUM_9;
+static constexpr gpio_num_t GPIO_BNO_INTERRUPT_PIN = GPIO_NUM_3;
+
+static constexpr uint64_t GPIO_OUTPUT_PIN_SEL = ((1ULL<<GPIO_POWER_PIN) | (1ULL<<GPIO_LED_PIN));
+static constexpr uint64_t GPIO_INPUT_PIN_SEL = ((1ULL<<GPIO_BUTTON_PIN) | (1ULL<<GPIO_BNO_INTERRUPT_PIN));
+
+static QueueHandle_t gpio_evt_queue = NULL;
+
+#define ESP_INTR_FLAG_DEFAULT 0
+
+static void IRAM_ATTR gpio_isr_handler(void* arg)
+{
+    uint32_t gpio_num = (uint32_t) arg;
+    xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
+}
+
 static uint8_t hidd_service_uuid128[] = {
     /* LSB <--------------------------------------------------------------------------------> MSB */
     //first uuid, 16bit, [12],[13] is the value
@@ -162,76 +180,100 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
     }
 }
 
-static uint8_t readJoystickChannel(adc1_channel_t channel)
+static void write_joystick_task(void *pvParameter)
 {
-    adc1_config_width(ADC_WIDTH_BIT_12);                  //Range 0-1023
-    adc1_config_channel_atten(channel, ADC_ATTEN_DB_11);  //ADC_ATTEN_DB_11 = 0-3,6V
-    return (uint8_t)(adc1_get_raw(channel) >> 2);         //Read analog and shift to 0-255
-}
+    uint16_t js1x,js1y,js1z;
+    uint64_t current_sum;
+    uint64_t last_sum = 0;
 
-static void read_joystick_task(void *pvParameter)
-{
-    uint16_t js1x,js1y,js2x,js2y;
-    uint32_t current_sum;
-
-    uint16_t buttons = 0;
-    uint32_t last_sum = 0;
-    uint16_t last_buttons = 0;
-
-    joystick_buttons_event_t ev;
-    //QueueHandle_t joystick_buttons_events = *joystick_buttons_init();
-
-    while(true) {
-        /*
-        ESP_LOGD(HID_JOYSTICK_TAG, "wait for joystick_buttons_events");
-
-        if (xQueueReceive(joystick_buttons_events, &ev, 50/portTICK_PERIOD_MS)) {
-            ESP_LOGI(HID_JOYSTICK_TAG, "joystick_buttons_events %d", ev.state);
-            buttons = ev.state;
-        }
-        */
-        /*
-        js1x = readJoystickChannel(ADC1_CHANNEL_1);
-        js1y = readJoystickChannel(ADC1_CHANNEL_4);
-        js2x = readJoystickChannel(ADC1_CHANNEL_2);
-        js2y = readJoystickChannel(ADC1_CHANNEL_3);
-        */
-
+    for (;;)
+    {
         js1x = tracker.getX();
         js1y = tracker.getY();
-        js2x = tracker.getZ();
-        js2y = 0;
-        // ESP_LOGI(HID_JOYSTICK_TAG, "%s js1x: %u", __func__, js1x);
+        js1z = tracker.getZ();
 
-        // very simple checksum :)
-        //current_sum = (js2x<<24) + (js2y<<16) + (js1x<<8) + js1y;
+        current_sum = (static_cast<uint64_t>(js1z)<<32) + (static_cast<uint64_t>(js1y)<<16) + js1x;
 
-        ESP_LOGD(HID_JOYSTICK_TAG, "last_sum %d", (int)last_sum);
+        if (current_sum != last_sum)
+        {
+            ESP_LOGE(HID_JOYSTICK_TAG, "X=%d Y=%d Z=%d", js1x, js1y, js1z);
+            esp_hidd_send_joystick_value(hid_conn_id, js1x, js1y, js1z);
 
-        // only transmit if something changed
-        if (true/*current_sum != last_sum || last_buttons != buttons*/) {
-            ESP_LOGD(HID_JOYSTICK_TAG, "send buttons %d JS1 X=%d Y=%d JS2 X=%d Y=%d", buttons, js1x, js1y, js2x, js2y);
-            esp_hidd_send_joystick_value(hid_conn_id, buttons, js1x, js1y, js2x, js2y);
-            //ESP_LOGE(HID_JOYSTICK_TAG, "joy: %d, custom: %d, raw: %d", js1x, static_cast<int16_t>(bno.getHeading()), bno.get_eul_heading());
+            last_sum = current_sum;
         }
-
-        // used to detect state changes which trigger sending a packet
-        //last_sum = current_sum;
-        //last_buttons = buttons;
     }
-
 }
 
-static esp_err_t read_joystick_init(void)
+static esp_err_t write_joystick_init(void)
 {
 
-    xTaskCreate(read_joystick_task, "read_joystick_task", 2048, NULL, 4, NULL);
+    xTaskCreate(write_joystick_task, "write_joystick_task", 2048, NULL, 4, NULL);
 
     return ESP_OK;
 }
 
+static void gpio_task_input(void* arg)
+{
+    gpio_num_t io_num;
+    for (;;) {
+        if (xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
+            //printf("GPIO[%"PRIu32"] intr, val: %d\n", io_num, gpio_get_level(io_num));
+            switch (io_num) {
+                case GPIO_BUTTON_PIN:
+                    // turn off power
+                    gpio_set_level(GPIO_POWER_PIN, 0);
+                    break;
+                case GPIO_BNO_INTERRUPT_PIN:
+                    //write_joystick_task();
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+}
+
+static void confGPIO()
+{
+    gpio_config_t gpio_conf = {};
+
+    // config output pins
+    gpio_conf.intr_type = GPIO_INTR_DISABLE;
+    gpio_conf.mode = GPIO_MODE_OUTPUT;
+    gpio_conf.pin_bit_mask = GPIO_OUTPUT_PIN_SEL;
+    gpio_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    gpio_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    ESP_ERROR_CHECK(gpio_config(&gpio_conf));
+
+    // config input pins
+    gpio_conf.intr_type = GPIO_INTR_POSEDGE;
+    gpio_conf.pin_bit_mask = GPIO_INPUT_PIN_SEL;
+    gpio_conf.mode = GPIO_MODE_INPUT;
+    gpio_conf.pull_down_en = GPIO_PULLDOWN_ENABLE;
+    ESP_ERROR_CHECK(gpio_config(&gpio_conf));
+
+    //create a queue to handle gpio event from isr
+    gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
+    //start gpio task
+    xTaskCreate(gpio_task_input, "gpio_task_input", 2048, NULL, 10, NULL);
+
+    //install gpio isr service
+    gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
+    //hook isr handler for specific gpio pin
+    gpio_isr_handler_add(GPIO_BUTTON_PIN, gpio_isr_handler, (void*) GPIO_BUTTON_PIN);
+    //hook isr handler for specific gpio pin
+    gpio_isr_handler_add(GPIO_BNO_INTERRUPT_PIN, gpio_isr_handler, (void*) GPIO_BNO_INTERRUPT_PIN);
+}
+
 extern "C" void app_main()
 {
+    // config GPIO Pins
+    confGPIO();
+    // switch on power
+    gpio_set_level(GPIO_POWER_PIN, 1);
+    // turn off LED
+    gpio_set_level(GPIO_LED_PIN, 0);
+
     esp_err_t ret;
 
     // Initialize NVS.
@@ -309,6 +351,16 @@ extern "C" void app_main()
         vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
 
+    /*
+    //configure bno interrupts
+    while ((ret = bno.configureInterrupt()) != ESP_OK)
+    {
+        ESP_LOGE(HID_JOYSTICK_TAG, "%s bno configure interrupt failed, retrying..\n", __func__);
+        ESP_LOGE(HID_JOYSTICK_TAG, "%s", esp_err_to_name(ret));
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+    }
+    */
+
     // set operating mode to NDOF, takes ~20ms
     if ((ret = bno.setOpMode(NDOF)) != ESP_OK)
     {
@@ -317,9 +369,12 @@ extern "C" void app_main()
     }
 
     // start sending joystick values
-    if((ret = read_joystick_init()) != ESP_OK) 
+    if((ret = write_joystick_init()) != ESP_OK) 
     {
-        ESP_LOGE(HID_JOYSTICK_TAG, "%s init read joystick failed\n", __func__);
+        ESP_LOGE(HID_JOYSTICK_TAG, "%s init write joystick failed\n", __func__);
     }
+
+    // turn on LED
+    gpio_set_level(GPIO_LED_PIN, 1);
 
 }

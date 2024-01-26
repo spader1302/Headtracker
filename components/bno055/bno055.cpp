@@ -159,13 +159,22 @@ static constexpr float QUA_BITS_PER_QUA_F       = 2e14f;
 static constexpr TickType_t DELAY_INIT_MS         = 3000;
 static constexpr TickType_t DELAY_OPMODE_MS       = 20;
 
+// BNO055 Register Values
+static constexpr uint8_t RESET_INT = (1<<6);
+static constexpr uint8_t INT_EN_GYRO_DRDY = (1<<4);
+static constexpr uint8_t INT_EN_GYRO_AM = (1<<2);
+static constexpr uint8_t GYR_INT_SETTINGS = 0x07; // any motion for x, y, z axes
+
 esp_err_t BNOSensor::begin()
 {
     esp_err_t err;
+
+    //init i2c connection
     if ((err = _i2c_init()) == ESP_OK)
     {
         vTaskDelay(DELAY_INIT_MS / portTICK_PERIOD_MS);
     }
+
     return err;
 }
 
@@ -270,6 +279,37 @@ esp_err_t BNOSensor::invertAxes(bool x_axis_inv, bool y_axis_inv, bool z_axis_in
     return _writeRegister(AXIS_MAP_SIGN_ADDR, data);
 }
 
+esp_err_t BNOSensor::configureInterrupt()
+{
+    esp_err_t ret;
+
+    ret = _setPage(PAGE_1);
+
+    if (ret == ESP_OK)
+    {
+        ret = _writeRegister(GYR_INT_SETING_ADDR, GYR_INT_SETTINGS);
+    }
+    if (ret == ESP_OK)
+    {
+        ret = _writeRegister(INT_EN_ADDR, INT_EN_GYRO_DRDY);
+    }
+    if (ret == ESP_OK)
+    {
+        ret = _writeRegister(INT_MSK_ADDR, INT_EN_GYRO_DRDY);
+    }
+    if (ret == ESP_OK)
+    {
+        ret = _setPage(PAGE_0);
+    }
+
+    return ret;
+}
+
+esp_err_t BNOSensor::resetInterrupt()
+{   
+    return _writeRegister(SYS_TRIGGER_ADDR, RESET_INT);
+}
+
 pitch_int_t BNOSensor::getPitch()
 {
     return pitch_int_t(get_eul_pitch());
@@ -334,6 +374,11 @@ int16_t BNOSensor::get_qua_y()
 int16_t BNOSensor::get_qua_z()
 {
     return _readRegister2ByteSigned(QUA_Data_z_LSB_ADDR);
+}
+
+esp_err_t BNOSensor::_setPage(_register_page_t page)
+{
+    return _writeRegister(PAGE_ID_ADDR, static_cast<uint8_t>(page));
 }
 
 int16_t BNOSensor::_readRegister2ByteSigned(uint8_t reg_addr)

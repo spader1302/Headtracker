@@ -110,6 +110,10 @@ public:
     //true for inverted axes
     esp_err_t invertAxes(bool x_axis_inv, bool y_axis_inv, bool z_axis_inv);
 
+    //interrupts
+    esp_err_t configureInterrupt();
+    esp_err_t resetInterrupt();
+
     pitch_int_t getPitch();
     roll_int_t getRoll();
     heading_int_t getHeading();
@@ -131,6 +135,13 @@ public:
     int16_t get_qua_z();
 
 private:
+
+    typedef enum {
+        PAGE_0,
+        PAGE_1
+    } _register_page_t;
+
+    esp_err_t _setPage(_register_page_t page);
 
     int16_t _readRegister2ByteSigned(uint8_t reg_addr);
     uint16_t _readRegister2ByteUnsigned(uint8_t reg_addr);

@@ -144,10 +144,10 @@ void esp_hidd_send_mouse_value(uint16_t conn_id, uint8_t mouse_button, int8_t mi
     return;
 }
 
-void esp_hidd_send_joystick_value(uint16_t conn_id, uint16_t joystick_buttons, uint16_t joystick_x, uint16_t joystick_y, uint16_t joystick_z, uint8_t joystick_rx)
+void esp_hidd_send_joystick_value(uint16_t conn_id, uint16_t joystick_x, uint16_t joystick_y, uint16_t joystick_z)
 {
     uint8_t buffer[HID_GAMEPAD_IN_RPT_LEN];
-    ESP_LOGD(HID_LE_PRF_TAG, "the buttons value = %d js1 = %d, %d js2 = %d, %d", joystick_buttons, joystick_x, joystick_y, joystick_z, joystick_rx);
+    ESP_LOGD(HID_LE_PRF_TAG, "x = %d, y = %d, z = %d", joystick_x, joystick_y, joystick_z);
 
     //buffer[0]=joystick_buttons & 0xff;
     //buffer[1] = ( joystick_buttons >> 8);
